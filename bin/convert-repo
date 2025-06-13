@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# Simple placeholder‑replacement helper (POSIX‑compliant subset)
+# Usage: convert-repo "New Project Name" 1.0.0 2025-06-13
+
+set -e
+
+if [ "$#" -ne 3 ]; then
+  echo "Usage: $0 <project_name> <version> <date>" >&2
+  exit 1
+fi
+
+PROJECT_NAME="$1"
+VERSION="$2"
+DATE="$3"
+
+PROJECT_SLUG=$(echo "$PROJECT_NAME" | tr '[:upper:]' '[:lower:]' | tr ' ' '-')
+PROJECT_CAMEL=$(echo "$PROJECT_NAME" | tr '[:upper:]' '[:lower:]' | tr -d ' ')
+
+# Replace tokens in tracked files
+for f in $(git ls-files | grep -v '^\.git'); do
+  sed -i "" \
+    -e "s/PROJECT_NAME/$PROJECT_NAME/g" \
+    -e "s/PROJECT_SLUG/$PROJECT_SLUG/g" \
+    -e "s/PROJECT_CAMEL/$PROJECT_CAMEL/g" \
+    -e "s/VERSION/$VERSION/g" \
+done
+
+# Rename include directory
+if [ -d "include/PROJECT_SLUG" ]; then
+  git mv "include/PROJECT_SLUG" "include/$PROJECT_SLUG"
+fi
+
+# Rename in code guards
+for f in $(git ls-files '*.h'); do
+  sed -i "" -e "s/PROJECT_CAMEL/${PROJECT_CAMEL}/g" "$f"
+done
+
+# Commit
+git commit -am "chore: convert template to $PROJECT_NAME $VERSION" 

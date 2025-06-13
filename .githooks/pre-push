@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# Local build/tests before push **and** auto‑merge Changie logs when pushing a semver tag.
+# Abort on failure to avoid broken remote history.
+
+set -e
+
+# stdin from git provides local‑remote ref pairs: <local ref> <local sha> <remote ref> <remote sha>
+# Detect outgoing tags (refs/tags/v*)
+TAG_REFS=$(while read -r local_ref local_sha remote_ref remote_sha; do
+  case "$remote_ref" in
+    refs/tags/v*) echo "$remote_ref";;
+  esac
+done < /dev/stdin)
+
+if [ -n "$TAG_REFS" ]; then
+  echo "Detected tag push: $TAG_REFS"
+  if command -v changie >/dev/null 2>&1; then
+    echo "Merging Changie entries into CHANGELOG.md …"
+    changie batch --yes
+    git add CHANGELOG.md
+    if ! git diff --cached --quiet; then
+      git commit -m "docs(changelog): update for $TAG_REFS"
+    fi
+  else
+    echo "changie not found in PATH – skipping changelog merge." >&2
+  fi
+fi
+
+# Run build and tests
+echo "Running local build/tests …"
+cmake -B build -DCMAKE_BUILD_TYPE=Release -S .
+cmake --build build
+ctest --test-dir build --output-on-failure 
